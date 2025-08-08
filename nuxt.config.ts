@@ -38,4 +38,11 @@ export default defineNuxtConfig({
       tailwindcss(),
     ],
   },
+  runtimeConfig: {
+    vercelAiGatewayApiKey: process.env.VERCEL_AI_GATEWAY_API_KEY,
+    public: {
+      aiGatewayUrl: process.env.VERCEL_AI_GATEWAY_URL,
+      aiGatewayApiKey: process.env.VERCEL_AI_GATEWAY_API_KEY,
+    }
+  }
 })

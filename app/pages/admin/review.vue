@@ -13,10 +13,35 @@
         </div>
         <div class="font-medium">Q: {{ s.question }}</div>
         <div class="text-sm">A: {{ s.answer }}</div>
-        <div class="mt-2"><span class="text-xs text-muted-foreground">Clues:</span>
-          <ul class="list-disc ml-5 text-sm">
-            <li v-for="(c, i) in s.clues" :key="i">{{ c.content }}</li>
+        <div class="mt-2">
+          <div class="text-xs text-muted-foreground mb-1">Alternative answers:</div>
+          <div v-if="!s.alternative_answers || s.alternative_answers.length === 0" class="text-sm text-muted-foreground">None</div>
+          <ul v-else class="list-disc ml-5 text-sm">
+            <li v-for="(alt, i) in s.alternative_answers" :key="i">{{ alt }}</li>
           </ul>
+        </div>
+
+        <div class="mt-3">
+          <div class="text-xs text-muted-foreground mb-1">Clues:</div>
+          <div v-if="!s.clues || s.clues.length === 0" class="text-sm text-muted-foreground">None</div>
+          <div v-else class="space-y-2">
+            <div v-for="(c, i) in s.clues" :key="i" class="border rounded p-2">
+              <div class="flex items-center justify-between">
+                <div class="text-xs font-medium">{{ c.title || `Clue ${i+1}` }} <span class="ml-2 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase">{{ c.type }}</span></div>
+                <div class="text-[10px] text-muted-foreground">Weight: {{ c.weight }}</div>
+              </div>
+              <div class="mt-1 text-sm" v-if="c.type === 'text'">{{ c.content }}</div>
+              <div class="mt-1" v-else-if="c.type === 'image' && isValidUrl(c.content)">
+                <img :src="c.content" alt="clue image" class="max-h-40 rounded border object-contain" />
+                <div class="text-xs text-muted-foreground break-all mt-1">{{ c.content }}</div>
+              </div>
+              <div class="mt-1" v-else-if="c.type === 'audio' && isValidUrl(c.content)">
+                <audio :src="c.content" controls class="w-full" />
+                <div class="text-xs text-muted-foreground break-all mt-1">{{ c.content }}</div>
+              </div>
+              <div class="mt-1 text-xs text-muted-foreground" v-else>Invalid or unsupported clue content.</div>
+            </div>
+          </div>
         </div>
       </div>
       <div v-if="submissions.length === 0" class="text-sm text-muted-foreground">No pending submissions.</div>
@@ -46,7 +71,7 @@ onMounted(async () => {
   }
   const { data } = await supabase
     .from('trivia_content')
-    .select('id, question, answer, clues, created_at, is_active')
+    .select('id, question, answer, clues, alternative_answers, created_at, is_active')
     .eq('is_active', false)
     .order('created_at', { ascending: true })
   submissions.value = data || []
@@ -61,6 +86,16 @@ async function approve(id: string) {
 async function reject(id: string) {
   await supabase.from('trivia_content').delete().eq('id', id)
   submissions.value = submissions.value.filter(s => s.id !== id)
+}
+
+function isValidUrl(url: string): boolean {
+  if (!url) return false
+  try {
+    const u = new URL(url)
+    return u.protocol === 'http:' || u.protocol === 'https:'
+  } catch {
+    return false
+  }
 }
 </script>
 

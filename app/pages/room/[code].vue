@@ -275,10 +275,10 @@
             </div>
         </div>
 
-        <!-- Right Sidebar - Chat -->
+        <!-- Right Sidebar - Guesses -->
         <div class="w-80 flex flex-col">
             <div class="bg-card border rounded-lg p-6 flex-1 flex flex-col min-h-0">
-                <h2 class="text-xl font-bold mb-4">Chat</h2>
+                <h2 class="text-xl font-bold mb-4">Guesses</h2>
 
                 <div class="flex-1 overflow-y-auto mb-4 space-y-3 min-h-0" ref="chatContainer">
                     <div v-for="message in chatMessages" :key="message.id" class="flex flex-col gap-1">
@@ -289,7 +289,7 @@
                         <div class="text-sm bg-secondary/30 rounded-lg p-2 whitespace-pre-wrap break-words">{{ message.content }}</div>
                     </div>
                     <div v-if="chatMessages.length === 0" class="text-center text-muted-foreground text-sm py-8">
-                        No messages yet. Say hello! 👋
+                        No guesses yet. Be the first to guess!
                     </div>
                 </div>
 
@@ -300,7 +300,7 @@
                         @keydown.enter="handleTextareaEnter"
                         @input="autoResizeTextarea"
                         rows="3"
-                        :placeholder="gameState.isActive && gameState.playersGuessed.has(user?.id || '') ? 'You have already guessed correctly!' : 'Type a message (Shift+Enter for newline)...'"
+                        :placeholder="gameState.isActive && gameState.playersGuessed.has(user?.id || '') ? 'You have already guessed correctly!' : 'Type your guess (Shift+Enter for newline)...'"
                         :disabled="gameState.isActive && gameState.playersGuessed.has(user?.id || '')"
                         class="flex-1 px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed resize-none overflow-y-auto whitespace-pre-wrap break-words min-h-9 max-h-32" 
                     />
@@ -309,7 +309,7 @@
                          size="sm" class="cursor-pointer"
                         :disabled="!newMessage.trim() || (gameState.isActive && gameState.playersGuessed.has(user?.id || ''))"
                     >
-                        Send
+                        Guess
                     </Button>
                 </div>
             </div>
