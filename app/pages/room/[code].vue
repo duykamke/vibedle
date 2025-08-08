@@ -110,7 +110,7 @@
                         </div>
                     </div>
 
-                    <!-- Current Clue -->
+                    <!-- Current Clue / Reveal -->
                     <div v-if="gameState.currentContent && gameState.currentClueIndex >= 0" class="space-y-6">
                         <!-- Category and Clue Counter -->
                         <div class="text-center space-y-2">
@@ -121,7 +121,12 @@
                                 <h3 class="text-xl font-semibold">{{ getCategoryName(gameState.currentContent.category_id || '') }}</h3>
                             </div>
                             <div class="text-sm text-muted-foreground">
-                                Clue {{ gameState.currentClueIndex + 1 }} of {{ gameState.currentContent.clues.length }}
+                                <template v-if="!gameState.isRevealingAnswer">
+                                    Clue {{ gameState.currentClueIndex + 1 }} of {{ gameState.currentContent.clues.length }}
+                                </template>
+                                <template v-else>
+                                    Answer revealed
+                                </template>
                             </div>
                         </div>
 
@@ -154,11 +159,18 @@
                                     Your browser does not support the audio element.
                                 </audio>
                             </div>
+
+                            <!-- Reveal Answer -->
+                            <div v-if="gameState.isRevealingAnswer" class="mt-6 p-4 rounded-lg border text-center"
+                                 :style="{ borderColor: getCategoryColor(gameState.currentContent.category_id || ''), backgroundColor: getCategoryColor(gameState.currentContent.category_id || '') + '15' }">
+                                <div class="text-sm text-muted-foreground">Answer</div>
+                                <div class="text-lg font-semibold mt-1">{{ gameState.currentContent.answer }}</div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Timer -->
-                    <div v-if="gameState.clueStartTime" class="text-center">
+                    <div v-if="gameState.clueStartTime && !gameState.isRevealingAnswer" class="text-center">
                         <div class="w-40 h-2 bg-secondary rounded-full mx-auto overflow-hidden">
                             <div class="h-full transition-all duration-100 ease-linear"
                                  :class="timerColorClass"
@@ -394,6 +406,7 @@ interface TriviaContent {
 
 interface GameState {
     isActive: boolean
+    isRevealingAnswer: boolean
     currentRound: number
     totalRounds: number
     currentContent: TriviaContent | null
@@ -421,6 +434,7 @@ const tempName = ref('')
 // Game state
 const gameState = ref<GameState>({
     isActive: false,
+    isRevealingAnswer: false,
     currentRound: 0,
     totalRounds: 0,
     currentContent: null,
@@ -686,10 +700,8 @@ function handlePlayerGuess(playerId: string, playerName: string, guess: string, 
         // Check if everyone has guessed
         const activePlayers = players.value.length
         if (gameState.value.playersGuessed.size >= activePlayers) {
-            // Everyone guessed, move to next round
-            setTimeout(() => {
-                nextRound()
-            }, 1000)
+            // Everyone guessed, reveal answer then move to next round
+            revealAnswerThenNextRound(1500)
         } else {
             broadcastGameState()
         }
@@ -954,18 +966,35 @@ function startClueTimer() {
 function showNextClue() {
     if (!gameState.value.currentContent) return
 
-    gameState.value.currentClueIndex++
-    
-    if (gameState.value.currentClueIndex < gameState.value.currentContent.clues.length) {
+    const nextIndex = gameState.value.currentClueIndex + 1
+    if (nextIndex < gameState.value.currentContent.clues.length) {
+        gameState.value.currentClueIndex = nextIndex
         // Show next clue
         startClueTimer()
         broadcastGameState()
     } else {
-        // All clues shown, wait 2 seconds then next round
-        setTimeout(() => {
-            nextRound()
-        }, 2000)
+        // Last clue already shown — reveal answer then next round
+        revealAnswerThenNextRound(2000)
     }
+}
+
+function revealAnswerThenNextRound(delayMs: number = 2000) {
+    if (!isHost.value) return
+    // Stop timers
+    if (clueTimer.value) {
+        clearTimeout(clueTimer.value)
+        clueTimer.value = null
+    }
+    if (visualTimer.value) {
+        clearInterval(visualTimer.value)
+        visualTimer.value = null
+    }
+    gameState.value.isRevealingAnswer = true
+    gameState.value.clueStartTime = null
+    broadcastGameState()
+    setTimeout(() => {
+        nextRound()
+    }, delayMs)
 }
 
 function nextRound() {
@@ -978,6 +1007,7 @@ function nextRound() {
         visualTimer.value = null
     }
 
+    gameState.value.isRevealingAnswer = false
     gameState.value.currentRound++
     gameState.value.playersGuessed.clear()
     gameState.value.roundAnswers.clear()
@@ -1002,6 +1032,7 @@ function nextRound() {
 
 function endGame() {
     gameState.value.isActive = false
+    gameState.value.isRevealingAnswer = false
     gameState.value.currentContent = null
     gameState.value.currentClueIndex = -1
     
@@ -1054,6 +1085,7 @@ async function startGame() {
     gameContent.value = content
     gameState.value = {
         isActive: true,
+        isRevealingAnswer: false,
         currentRound: 0,
         totalRounds: settings.value.rounds || 5,
         currentContent: content[0] || null,
