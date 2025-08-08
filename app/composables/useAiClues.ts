@@ -5,13 +5,37 @@ interface GenerateOptions {
     allowMedia?: boolean // if true, model may return image/audio URLs
 }
 
-async function fetchWikipediaExtract(answer: string): Promise<string | null> {
+interface GenerateParams {
+    question: string
+    answer: string
+    difficulty: string
+    category: string
+    options?: GenerateOptions
+}
+
+export interface GeneratedClue {
+    type: 'text' | 'image' | 'audio'
+    title: string
+    weight: number
+    content: string
+}
+
+type WikipediaData = { text: string; images: string[] }
+
+async function fetchWikipediaData(answer: string): Promise<WikipediaData | null> {
     try {
         const res: any = await wtf.fetch(answer).catch(() => null)
         const doc: any = Array.isArray(res) ? res[0] : res
         if (doc && typeof doc.text === 'function') {
-            const text = (doc.text() as string | undefined)?.trim()
-            if (text) return text.slice(0, 50_000)
+            const text = (doc.text() as string | undefined)?.trim() ?? ''
+            const imgsRaw: any[] = typeof doc.images === 'function' ? (doc.images() || []) : []
+            const images: string[] = imgsRaw
+                .map((img: any) => (typeof img?.url === 'function' ? img.url() : null))
+                .filter((u: any) => typeof u === 'string' && /^https?:\/\//.test(u))
+                .slice(0, 50) // cap to a reasonable amount
+            if (text) {
+                return { text: text.slice(0, 50_000), images }
+            }
         }
     } catch (_) {
         // ignore
@@ -20,8 +44,8 @@ async function fetchWikipediaExtract(answer: string): Promise<string | null> {
 }
 
 export function useAiClues() {
-    const generateClues = async (params: { question: string; answer: string; options?: GenerateOptions }): Promise<GeneratedClue[]> => {
-        const { question, answer, options } = params
+    const generateClues = async (params: GenerateParams): Promise<GeneratedClue[]> => {
+        const { question, answer, difficulty, category, options } = params
         const maxClues = Math.max(1, Math.min(8, options?.maxClues ?? 5))
         const allowMedia = !!options?.allowMedia
 
@@ -29,9 +53,11 @@ export function useAiClues() {
 
         // Server will handle AI Gateway; no API key required on client
 
-        // 1) Fetch Wikipedia extract client-side
-        const context = await fetchWikipediaExtract(answer)
-        if (!context) throw new Error('Could not find Wikipedia content for the answer')
+        // 1) Fetch Wikipedia extract + images client-side
+        const wiki = await fetchWikipediaData(answer)
+        if (!wiki) throw new Error('Could not find Wikipedia content for the answer')
+        const context = wiki.text
+        const images = wiki.images
 
         // 2) Call Nuxt server route to generate clues (avoids CORS)
         const resp = await fetch('/api/generate-clues', {
@@ -40,7 +66,10 @@ export function useAiClues() {
             body: JSON.stringify({
                 question,
                 answer,
+                difficulty,
+                category,
                 context,
+                images,
                 maxClues,
                 allowMedia,
             }),

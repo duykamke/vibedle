@@ -66,7 +66,7 @@
               <Icon name="mdi:delete" class="h-4 w-4" />
             </Button>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
             <div>
               <label class="block text-xs font-medium mb-1">Type</label>
               <Select v-model="clue.type">
@@ -80,13 +80,17 @@
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <label class="block text-xs font-medium mb-1">Title</label>
+              <input v-model="clue.title" class="w-full border rounded px-3 py-2" placeholder="Clue title" />
+            </div>
             <div class="sm:col-span-2">
               <label class="block text-xs font-medium mb-1">Content</label>
               <template v-if="clue.type === 'text'">
-                <input v-model="clue.content" class="w-full border rounded px-3 py-2" placeholder="Write the clue text" />
+                <textarea v-model="clue.content" rows="2" class="w-full border rounded px-3 py-2" placeholder="Enter text clue" />
               </template>
               <template v-else>
-                <input v-model="clue.content" class="w-full border rounded px-3 py-2" placeholder="Enter a public URL (https://...)" />
+                <input v-model="clue.content" class="w-full border rounded px-3 py-2" :placeholder="clue.type === 'image' ? 'https://example.com/image.jpg' : 'https://example.com/audio.mp3'" />
               </template>
             </div>
           </div>
@@ -143,7 +147,7 @@ const { data: categories } = await useAsyncData('submit-categories', async () =>
 })
 
 type ClueType = 'text' | 'image' | 'audio'
-type EditableClue = { type: ClueType, content: string }
+type EditableClue = { type: ClueType, title: string, content: string }
 
 const categoryId = ref<string | null>(null)
 const categoryOption = computed<string>({
@@ -166,7 +170,8 @@ function removeAlternative(index: number) {
 }
 
 function addClue() {
-  clues.value.push({ type: 'text', content: '' })
+  const nextIndex = clues.value.length + 1
+  clues.value.push({ type: 'text', title: `Clue ${nextIndex}`, content: '' })
 }
 function removeClue(index: number) {
   clues.value.splice(index, 1)
@@ -193,7 +198,7 @@ async function submit() {
 
   // Build clues with weights and titles
   const payloadClues = clues.value
-    .map((c, i) => ({ type: c.type, title: `Clue ${i + 1}`, weight: i + 1, content: (c.content || '').trim() }))
+    .map((c, i) => ({ type: c.type, title: c.title.trim(), weight: i + 1, content: c.content.trim() }))
     .filter(c => !!c.content)
 
   const alt = alternativesList.value.map(s => s.trim()).filter(Boolean)
@@ -228,10 +233,12 @@ async function generateFromAi() {
     const items = await generateClues({
       question: question.value,
       answer: answer.value,
+      difficulty: 'medium',
+      category: categoryOption.value,
       options: { maxClues: 5, allowMedia: true },
     })
     // Map to editable clues used by the form
-    clues.value = items.map((c: GeneratedClue) => ({ type: c.type, content: c.content }))
+    clues.value = items.map((c: GeneratedClue, idx: number) => ({ type: c.type, title: c.title || `Clue ${idx + 1}`, content: c.content }))
   } catch (e: any) {
     alert(e?.message || 'Failed to generate clues')
   } finally {
